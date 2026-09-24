@@ -1,0 +1,636 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ESG_ADMIN
+  GROUP_ESG_MANAGER
+  SUBSIDIARY_MANAGER
+  BU_MANAGER
+  PROJECT_MANAGER
+  DATA_CONTRIBUTOR
+  ESG_REVIEWER
+  AUDITOR
+  EXECUTIVE
+  STAKEHOLDER
+}
+
+enum OrgType {
+  GROUP
+  SUBSIDIARY
+  BUSINESS_UNIT
+  DEPARTMENT
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum ReportingBoundary {
+  STANDALONE
+  CONSOLIDATED
+}
+
+enum BRSRSectionCode {
+  A
+  B
+  C
+}
+
+enum IndicatorType {
+  ESSENTIAL
+  LEADERSHIP
+  BRSR_CORE
+}
+
+enum ResponseStatus {
+  DRAFT
+  ANSWERED
+  NOT_APPLICABLE
+  NOT_AVAILABLE
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum ReviewAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+  VERIFIED
+}
+
+// Multi-level approval workflow status for ESG Metric Values
+enum WorkflowStatus {
+  DRAFT
+  SUBMITTED
+  PM_APPROVED
+  REVIEWER_APPROVED
+  BU_APPROVED
+  SUBSIDIARY_APPROVED
+  GROUP_APPROVED
+  PUBLISHED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum EvidenceStatus {
+  UPLOADED
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentType {
+  BRSR_REPORT
+  ANNUAL_REPORT
+  SUSTAINABILITY_REPORT
+  POLICY
+  AUDIT_REPORT
+  PROJECT_REPORT
+  CERTIFICATE
+  INVOICE
+  UTILITY_RECORD
+  ENVIRONMENTAL_RECORD
+  SAFETY_RECORD
+  HR_RECORD
+  SUPPLIER_DOCUMENT
+  OTHER
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  PARTIALLY_COMPLIANT
+  MISSING
+  INVALID
+  PENDING_REVIEW
+  NOT_APPLICABLE
+}
+
+enum MetricCategory {
+  ENVIRONMENT
+  SOCIAL
+  GOVERNANCE
+  ENERGY
+  WATER
+  WASTE
+  EMISSIONS
+  BIODIVERSITY
+  EMPLOYEE
+  HEALTH_SAFETY
+  COMMUNITY
+  SUPPLY_CHAIN
+  CUSTOMER
+  ETHICS
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_LOGOUT
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  DOCUMENT_UPLOADED
+  DOCUMENT_PROCESSED
+  EVIDENCE_CREATED
+  EVIDENCE_VERIFIED
+  EVIDENCE_REJECTED
+  BRSR_RESPONSE_CREATED
+  BRSR_RESPONSE_UPDATED
+  BRSR_RESPONSE_SUBMITTED
+  REVIEW_ACTION
+  REPORT_GENERATED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  METRIC_VALUE_ENTERED
+  ORG_CREATED
+  ORG_UPDATED
+}
+
+// ─────────────────────────────────────────────
+// IDENTITY
+// ─────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  role              UserRole
+  isActive          Boolean   @default(true)
+  lastLoginAt       DateTime?
+  avatarUrl         String?
+  phone             String?
+  designation       String?
+  department        String?
+
+  organizationId    String?
+  organization      Organization? @relation(fields: [organizationId], references: [id])
+
+  // Project assignments (many-to-many)
+  projectAssignments ProjectUser[]
+
+  // Tokens
+  refreshTokens     RefreshToken[]
+
+  // Audit
+  auditLogs         AuditLog[]
+  brsr_reviews      BRSRReviewHistory[]
+  evidenceReviews   Evidence[]  @relation("EvidenceReviewer")
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATION HIERARCHY
+// ─────────────────────────────────────────────
+
+model Organization {
+  id          String    @id @default(uuid())
+  name        String
+  type        OrgType
+  cin         String?
+  pan         String?
+  website     String?
+  address     String?
+  city        String?
+  state       String?
+  country     String    @default("India")
+  phone       String?
+  email       String?
+  description String?
+  logoUrl     String?
+
+  // Self-referential hierarchy
+  parentId    String?
+  parent      Organization?  @relation("OrgHierarchy", fields: [parentId], references: [id])
+  children    Organization[] @relation("OrgHierarchy")
+
+  users       User[]
+  projects    Project[]
+  reportingPeriods ReportingPeriod[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("organizations")
+}
+
+// ─────────────────────────────────────────────
+// PROJECTS
+// ─────────────────────────────────────────────
+
+model Project {
+  id              String        @id @default(uuid())
+  name            String
+  code            String?       @unique
+  description     String?
+  location        String?
+  state           String?
+  country         String        @default("India")
+  sector          String?
+  subsector       String?
+  startDate       DateTime?
+  endDate         DateTime?
+  status          ProjectStatus @default(ACTIVE)
+  budget          Float?
+  currency        String        @default("INR")
+
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+
+  users           ProjectUser[]
+  esgMetricValues ESGMetricValue[]
+  evidence        Evidence[]
+  documents       Document[]
+  sdgMappings     SDGMapping[]
+  brsrResponses   BRSRResponse[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("projects")
+}
+
+model ProjectUser {
+  id        String  @id @default(uuid())
+  projectId String
+  userId    String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_users")
+}
+
+// ─────────────────────────────────────────────
+// REPORTING PERIODS
+// ─────────────────────────────────────────────
+
+model ReportingPeriod {
+  id              String            @id @default(uuid())
+  name            String            // e.g. "FY 2025-26"
+  startDate       DateTime
+  endDate         DateTime
+  boundary        ReportingBoundary @default(CONSOLIDATED)
+  isActive        Boolean           @default(false)
+  isCurrent       Boolean           @default(false)
+  description     String?
+
+  organizationId  String
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+
+  brsrResponses   BRSRResponse[]
+  esgMetricValues ESGMetricValue[]
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@map("reporting_periods")
+}
+
+// ─────────────────────────────────────────────
+// BRSR STRUCTURE
+// ─────────────────────────────────────────────
+
+model BRSRSection {
+  id          String          @id @default(uuid())
+  code        BRSRSectionCode // A, B, C
+  name        String
+  description String?
+  orderIndex  Int
+
+  questions   BRSRQuestion[]
+
+  @@map("brsr_sections")
+}
+
+model BRSRPrinciple {
+  id          String         @id @default(uuid())
+  code        String         // P1 ... P9
+  number      Int
+  name        String
+  description String?
+  theme       String?
+
+  questions   BRSRQuestion[]
+
+  @@map("brsr_principles")
+}
+
+model BRSRQuestion {
+  id              String         @id @default(uuid())
+  questionCode    String         @unique  // e.g. "C-P6-E-13"
+  text            String
+  description     String?
+  indicatorType   IndicatorType
+  responseType    String         @default("text") // text, number, boolean, table
+  unit            String?
+  guidance        String?
+  isMandatory     Boolean        @default(true)
+  orderIndex      Int
+
+  sectionId       String
+  section         BRSRSection    @relation(fields: [sectionId], references: [id])
+
+  principleId     String?
+  principle       BRSRPrinciple? @relation(fields: [principleId], references: [id])
+
+  responses       BRSRResponse[]
+
+  @@map("brsr_questions")
+}
+
+model BRSRResponse {
+  id                String         @id @default(uuid())
+  response          String?
+  numericValue      Float?
+  unit              String?
+  status            ResponseStatus @default(DRAFT)
+  applicability     Boolean        @default(true)
+  naReason          String?
+  reportingBoundary ReportingBoundary?
+  notes             String?
+
+  questionId        String
+  question          BRSRQuestion   @relation(fields: [questionId], references: [id])
+
+  reportingPeriodId String
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id])
+
+  projectId         String?
+  project           Project?       @relation(fields: [projectId], references: [id])
+
+  evidenceLinks     BRSRResponseEvidence[]
+  reviewHistory     BRSRReviewHistory[]
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([questionId, reportingPeriodId, projectId])
+  @@map("brsr_responses")
+}
+
+model BRSRResponseEvidence {
+  id          String       @id @default(uuid())
+  responseId  String
+  evidenceId  String
+  response    BRSRResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  evidence    Evidence     @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, evidenceId])
+  @@map("brsr_response_evidence")
+}
+
+model BRSRReviewHistory {
+  id         String       @id @default(uuid())
+  action     ReviewAction
+  notes      String?
+  responseId String
+  response   BRSRResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User         @relation(fields: [reviewerId], references: [id])
+  createdAt  DateTime     @default(now())
+
+  @@map("brsr_review_history")
+}
+
+// ─────────────────────────────────────────────
+// ESG METRICS
+// ─────────────────────────────────────────────
+
+model ESGMetric {
+  id          String         @id @default(uuid())
+  code        String         @unique
+  name        String
+  description String?
+  category    MetricCategory
+  unit        String?
+  dataType    String         @default("number") // number, text, boolean, percentage
+  frequency   String         @default("annual")  // annual, quarterly, monthly
+  isActive    Boolean        @default(true)
+  sdgIds      Int[]          @default([])
+  brsr_mapping String?
+
+  values      ESGMetricValue[]
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("esg_metrics")
+}
+
+model ESGMetricValue {
+  id                String          @id @default(uuid())
+  value             Float?
+  textValue         String?
+  unit              String?
+  notes             String?
+  isVerified        Boolean         @default(false)
+  verifiedBy        String?
+  verifiedAt        DateTime?
+
+  // Multi-level workflow status
+  workflowStatus    WorkflowStatus  @default(DRAFT)
+  submittedBy       String?
+  submittedAt       DateTime?
+  reviewerComment   String?
+  lastActionBy      String?
+  lastActionAt      DateTime?
+
+  metricId          String
+  metric            ESGMetric       @relation(fields: [metricId], references: [id])
+
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id])
+
+  reportingPeriodId String
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id])
+
+  evidenceId        String?
+  evidence          Evidence?       @relation(fields: [evidenceId], references: [id])
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([metricId, projectId, reportingPeriodId])
+  @@map("esg_metric_values")
+}
+
+// ─────────────────────────────────────────────
+// DOCUMENTS & EVIDENCE
+// ─────────────────────────────────────────────
+
+model Document {
+  id            String       @id @default(uuid())
+  name          String
+  originalName  String
+  filePath      String
+  mimeType      String
+  fileSize      Int
+  documentType  DocumentType @default(OTHER)
+  description   String?
+  reportingYear String?
+  source        String?
+  pageCount     Int?
+  isProcessed   Boolean      @default(false)
+  processingError String?
+
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id])
+
+  evidence      Evidence[]
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("documents")
+}
+
+model Evidence {
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  status          EvidenceStatus @default(UPLOADED)
+  evidenceCode    String?        @unique
+  pageReference   String?
+  sectionRef      String?
+  notes           String?
+  rejectionReason String?
+  verifiedAt      DateTime?
+
+  documentId      String?
+  document        Document?      @relation(fields: [documentId], references: [id])
+
+  projectId       String?
+  project         Project?       @relation(fields: [projectId], references: [id])
+
+  reviewerId      String?
+  reviewer        User?          @relation("EvidenceReviewer", fields: [reviewerId], references: [id])
+
+  brsrLinks       BRSRResponseEvidence[]
+  metricValues    ESGMetricValue[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("evidence")
+}
+
+// ─────────────────────────────────────────────
+// SDG MAPPING
+// ─────────────────────────────────────────────
+
+model SDGMapping {
+  id          String  @id @default(uuid())
+  sdgNumber   Int     // 1-17
+  sdgName     String
+  target      String?
+  indicator   String?
+  activity    String
+  description String?
+  contribution String?
+
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("sdg_mappings")
+}
+
+// ─────────────────────────────────────────────
+// POLICIES & TARGETS
+// ─────────────────────────────────────────────
+
+model Policy {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  principlesCovered String[] @default([])
+  policyOwner    String?
+  approvedDate   DateTime?
+  reviewDate     DateTime?
+  documentUrl    String?
+  isActive       Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("policies")
+}
+
+model ESGTarget {
+  id              String   @id @default(uuid())
+  title           String
+  description     String?
+  targetValue     Float?
+  unit            String?
+  baseline        Float?
+  baselineYear    String?
+  targetYear      String?
+  currentValue    Float?
+  progress        Float?   @default(0)
+  category        MetricCategory?
+  principleCode   String?
+  isAchieved      Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("esg_targets")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOGS
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  action      AuditAction
+  entityType  String?     // "User", "Document", "BRSRResponse", etc.
+  entityId    String?
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime    @default(now())
+
+  @@map("audit_logs")
+}
