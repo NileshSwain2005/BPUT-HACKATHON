@@ -123,31 +123,135 @@ PRAVAAH is designed around a hierarchical organizational structure.
        Project  Project Project Project Project Project
 ```
 
-### Data flows upward
+### 📊 Role Workflows — Data Flow & Governance Hierarchy
 
 ```text
-Project
-   ↓
-Business Unit
+DATA_CONTRIBUTOR
+       ↓  (submit_to_pm: DRAFT / REVISION_REQUESTED → SUBMITTED)
+PROJECT_MANAGER
+       ↓  (pm_approve: SUBMITTED → PM_APPROVED)
+ESG_REVIEWER
+       ↓  (reviewer_approve: PM_APPROVED → REVIEWER_APPROVED)
+BU_MANAGER
+       ↓  (bu_approve: REVIEWER_APPROVED → BU_APPROVED)
+SUBSIDIARY_MANAGER
+       ↓  (subsidiary_approve: BU_APPROVED → SUBSIDIARY_APPROVED)
+GROUP_ESG_MANAGER
+       ↓  (group_approve / publish: SUBSIDIARY_APPROVED → GROUP_APPROVED / PUBLISHED)
+EXECUTIVE / STAKEHOLDER  (Read-only access to published disclosures)
+       
+AUDITOR → (Reads all levels: audit trail, evidence vault & data lineage)
+SUPER_ADMIN / ESG_ADMIN → (Configure periods, thresholds, user roles & monitor all levels)
+```
+
+---
+
+### 🔄 Role-by-Role Data Flow & Work Performed
+
+#### 1. DATA_CONTRIBUTOR
+* **Where data flows:** Project level → **PROJECT_MANAGER**
+* **Workflow Status Transition:** `DRAFT` / `REVISION_REQUESTED` → `SUBMITTED`
+* **Work performed:**
+  * Enter monthly ESG metric values (energy, water, waste, safety incidents, GHG parameters, etc.)
+  * Upload supporting evidence (utility invoices, meter readings, calibration certificates)
+  * Mark data entry complete and submit for project validation
+  * Respond to reviewer/PM feedback queries and resubmit updated data
+
+#### 2. PROJECT_MANAGER
+* **Where data flows:** Receives from Data Contributor → Sends to **ESG_REVIEWER**
+* **Workflow Status Transition:** `SUBMITTED` → `PM_APPROVED` *(or `REVISION_REQUESTED` on rejection)*
+* **Work performed:**
+  * Review and validate raw data entered by project contributors
+  * Inspect and attach or verify supporting evidence documents
+  * Fix project validation errors (missing values, wrong units, unexpected spikes)
+  * Validate and submit verified project data for independent ESG review
+  * Monitor project ESG performance against assigned sustainability targets
+
+#### 3. ESG_REVIEWER
+* **Where data flows:** Receives from Project Manager → Sends to **BU_MANAGER**
+* **Workflow Status Transition:** `PM_APPROVED` → `REVIEWER_APPROVED` *(or `REVISION_REQUESTED` on rejection)*
+* **Work performed:**
+  * Verify evidence attachments against declared numbers
+  * Check calculation methodologies and emission conversion factors
+  * Flag anomalies (sudden consumption spikes, missing records, inconsistent units)
+  * Request revisions with actionable review queries and notes
+  * Approve compliant data for business unit consolidation
+
+#### 4. BU_MANAGER
+* **Where data flows:** Receives from ESG Reviewer → Sends to **SUBSIDIARY_MANAGER**
+* **Workflow Status Transition:** `REVIEWER_APPROVED` → `BU_APPROVED` *(or `REVISION_REQUESTED` on rejection)*
+* **Work performed:**
+  * Consolidate and monitor BU-wide ESG performance across all business unit projects
+  * Compare project-level performance to identify leading and lagging project sites
+  * Standardize reporting formats and methodologies across projects
+  * Approve BU submission for legal entity / subsidiary consolidation
+  * Address compliance gaps and anomalies flagged at the BU level
+
+#### 5. SUBSIDIARY_MANAGER
+* **Where data flows:** Receives from BU Manager → Sends to **GROUP_ESG_MANAGER**
+* **Workflow Status Transition:** `BU_APPROVED` → `SUBSIDIARY_APPROVED` *(or `REVISION_REQUESTED` on rejection)*
+* **Work performed:**
+  * Oversee legal entity / subsidiary statutory ESG compliance
+  * Review consolidated BU data across all business units
+  * Monitor legal entity ESG KPIs (Scope 1/2 GHG emissions, water intensity, safety lost-time)
+  * Address regulatory readiness gaps (SEBI BRSR Core compliance)
+  * Approve subsidiary-level disclosure for group consolidation
+  * Drive subsidiary-level decarbonization and sustainability initiatives
+
+#### 6. GROUP_ESG_MANAGER
+* **Where data flows:** Receives from Subsidiary Manager → Group Reporting / Executive
+* **Workflow Status Transition:** `SUBSIDIARY_APPROVED` → `GROUP_APPROVED` → `PUBLISHED` *(locks data & marks officially verified)*
+* **Work performed:**
+  * Group-wide ESG data consolidation across all legal subsidiaries
+  * Generate official BRSR disclosures, GRI frameworks, and annual ESG filing packages
+  * Group-level predictive risk assessments and compliance gap analyses
+  * Track consolidated corporate sustainability goals and SDG alignment
+  * Oversee statutory assurance readiness and audit preparation
+  * Final approval and official publication of group sustainability disclosures
+
+#### 7. EXECUTIVE / STAKEHOLDER
+* **Where data flows:** Receives from Group ESG Manager *(read-only output)*
+* **Workflow Status:** Reads `PUBLISHED` data
+* **Work performed:**
+  * High-level executive KPI dashboards, peer benchmarking, and enterprise risk heatmaps
+  * Monitor corporate ESG scores, SDG contributions, and progress toward Net Zero
+  * Review Board reports and Sustainability Committee presentations
+  * Access published statutory filings and stakeholder disclosures
+  * Strategic capital allocation and decision-making based on verified ESG trends
+
+#### 8. AUDITOR
+* **Where data flows:** Reads all levels *(audit trail & data lineage)*
+* **Workflow Status:** Read-only access across all statuses (`DRAFT` through `PUBLISHED`)
+* **Work performed:**
+  * Trace any reported metric back to its original project-level source and evidence
+  * Review the complete approval history (who entered, who approved, timestamps, comments)
+  * Verify calculation methodologies, emission factors, and assurance standards
+  * Inspect attached invoices, utility bills, and certificates in the Evidence Vault
+  * Export immutable audit trail reports for SEBI reasonable assurance and external audit
+
+#### 9. SUPER_ADMIN / ESG_ADMIN
+* **Where data flows:** Oversees and configures all levels *(configuration & governance)*
+* **Workflow Status:** Override authority across all workflow stages
+* **Work performed:**
+  * Configure reporting cycles, submission deadlines, and validation thresholds
+  * Manage user roles, access control (RBAC), and project assignments
+  * Set up and maintain ESG metrics, BRSR indicators, and unit standards
+  * Monitor system-wide workflow progress, bottlenecks, and overdue reviews
+  * Maintain system audit logs, security, and platform integrity
+
+### Management Drill-Down & Lineage
+
+```text
+Group
    ↓
 Subsidiary
    ↓
-Group
-```
-
-### Management can drill downward
-
-```text
-Group
-   ↓
-Subsidiary
-   ↓
 Business Unit
    ↓
 Project
 ```
 
-This creates complete organizational visibility.
+This creates bidirectional, end-to-end data integrity: project data flows upward with mandatory multi-level validations, while management and auditors can drill downward to the original source evidence.
 
 ---
 
